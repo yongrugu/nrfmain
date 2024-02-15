@@ -92,6 +92,7 @@ Kconfig*                                  @tejlmand
 /include/net/azure_*                      @nrfconnect/ncs-cia @coderbyheart
 /include/net/wifi_credentials.h           @nrfconnect/ncs-cia
 /include/net/nrf_cloud_*                  @plskeggs @jayteemo @glarsennordic
+/include/nrf_rpc/                         @doki-nordic @KAGA164 @nrfconnect/ncs-protocols-serialization
 /include/bluetooth/                       @alwa-nordic @jori-nordic @KAGA164
 /include/bluetooth/services/fast_pair/    @alstrzebonski @MarekPieta @kapi-no
 /include/bluetooth/adv_prov.h             @MarekPieta @kapi-no @KAGA164
@@ -280,7 +281,7 @@ Kconfig*                                  @tejlmand
 /subsys/net/lib/softap_wifi_provision/    @nrfconnect/ncs-cia
 /subsys/net/openthread/                   @rlubos @edmont @canisLupus1313 @maciejbaczmanski
 /subsys/nfc/                              @grochu @anangl
-/subsys/nrf_rpc/                          @doki-nordic @KAGA164
+/subsys/nrf_rpc/                          @doki-nordic @KAGA164 @nrfconnect/ncs-protocols-serialization
 /subsys/partition_manager/                @hakonfam
 /subsys/pcd/                              @hakonfam
 /subsys/nrf_profiler/                     @pdunaj

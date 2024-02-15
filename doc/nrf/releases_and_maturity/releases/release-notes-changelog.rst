@@ -438,7 +438,7 @@ Libraries for NFC
 nRF RPC libraries
 -----------------
 
-|no_changes_yet_note|
+* Added experimental :ref:`nrf_rpc_uart` implementation.
 
 Other libraries
 ---------------
