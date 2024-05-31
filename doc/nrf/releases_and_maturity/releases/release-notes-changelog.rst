@@ -452,6 +452,10 @@ Modem libraries
 
   * Added a log warning suggesting a SIM card to be installed if a UICC error is detected by the modem.
 
+* :ref:`pdn_readme` library:
+
+  * Added the event ``PDN_EVENT_CTX_DESTROYED`` to indicate when a PDNs PDP context is destroyed. This happens when the modem is switched to minimum functionality mode (``CFUN=0``).
+
 Multiprotocol Service Layer libraries
 -------------------------------------
 
