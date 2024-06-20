@@ -65,7 +65,7 @@ endif # BOOTLOADER_MCUBOOT
 
 if BOARD_NRF54H20DK
 
-config SUIT_ENVELOPE_ROOT_TEMPLATE
+config SUIT_ENVELOPE_ROOT_TEMPLATE_FILENAME
 	default "suit_templates/root_with_binary_nordic_top.yaml.jinja2"
 
 endif
