@@ -833,6 +833,41 @@ int z_wpa_supplicant_set_rts_threshold(const struct device *dev,
 	return wifi_mgmt_api->set_rts_threshold(dev, rts_threshold);
 }
 
+int z_wpa_supplicant_set_bss_max_idle_period(const struct device *dev,
+					     unsigned short bss_max_idle_period)
+{
+	struct wpa_supplicant *wpa_s;
+	int ret = 0;
+
+	k_mutex_lock(&wpa_supplicant_mutex, K_FOREVER);
+
+	wpa_s = get_wpa_s_handle(dev);
+
+	if (!wpa_s) {
+		wpa_printf(MSG_ERROR, "Interface %s not found", dev->name);
+		ret = -1;
+		goto out;
+	}
+
+	wpa_s->conf->bss_max_idle_period = bss_max_idle_period;
+out:
+	k_mutex_unlock(&wpa_supplicant_mutex);
+	return ret;
+}
+
+int z_wpa_supplicant_req_dms(const struct device *dev,
+			     struct wifi_dms_params *params)
+{
+	const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_mgmt_api(dev);
+
+	if (!wifi_mgmt_api || !wifi_mgmt_api->req_dms) {
+		wpa_printf(MSG_ERROR, "Request DMS ops not supported");
+		return -ENOTSUP;
+	}
+
+	return wifi_mgmt_api->req_dms(dev, params);
+}
+
 #ifdef CONFIG_AP
 int z_wpa_supplicant_ap_enable(const struct device *dev,
 			       struct wifi_connect_req_params *params)
