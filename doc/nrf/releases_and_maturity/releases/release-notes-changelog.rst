@@ -176,6 +176,11 @@ Asset Tracker v2
 
 |no_changes_yet_note|
 
+Serial LTE modem
+----------------
+
+* Removed support for deprecated RAI socket options :c:macro:`AT_SO_RAI_LAST`, :c:macro:`AT_SO_RAI_NO_DATA`, :c:macro:`AT_SO_RAI_ONE_RESP`, :c:macro:`AT_SO_RAI_ONGOING`, and :c:macro:`AT_SO_RAI_WAIT_MORE`.
+
 Connectivity Bridge
 -------------------
 
