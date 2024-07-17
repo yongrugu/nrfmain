@@ -176,6 +176,11 @@ Asset Tracker v2
 
 |no_changes_yet_note|
 
+Serial LTE modem
+----------------
+
+* Removed support for deprecated RAI socket options :c:macro:`AT_SO_RAI_LAST`, :c:macro:`AT_SO_RAI_NO_DATA`, :c:macro:`AT_SO_RAI_ONE_RESP`, :c:macro:`AT_SO_RAI_ONGOING`, and :c:macro:`AT_SO_RAI_WAIT_MORE`.
+
 Connectivity Bridge
 -------------------
 
@@ -444,6 +449,10 @@ Modem libraries
 * :ref:`nrf_modem_lib_lte_net_if` library:
 
   * Added a log warning suggesting a SIM card to be installed if a UICC error is detected by the modem.
+
+* :ref:`nrf_modem_lib_readme` library:
+
+  * Removed support for deprecated RAI socket options :c:macro:`SO_RAI_LAST`, :c:macro:`SO_RAI_NO_DATA`, :c:macro:`SO_RAI_ONE_RESP`, :c:macro:`SO_RAI_ONGOING`, and :c:macro:`SO_RAI_WAIT_MORE`.
 
 Multiprotocol Service Layer libraries
 -------------------------------------
