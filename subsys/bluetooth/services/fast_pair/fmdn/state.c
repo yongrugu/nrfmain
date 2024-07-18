@@ -449,6 +449,13 @@ static bool fmdn_adv_rpa_expired(struct bt_le_ext_adv *adv)
 
 	__ASSERT_NO_MSG(bt_fast_pair_is_ready());
 
+	if (!fp_fmdn_state_is_provisioned()) {
+		/* Keep the RPA in the valid state to properly encode the FMDN advertising payload
+		 * on the provisioning operation.
+		 */
+		return false;
+	}
+
 	LOG_DBG("FMDN State: RPA expired");
 
 	/* Handle state changes related to the RPA rotation. */
@@ -484,18 +491,20 @@ static bool fmdn_adv_rpa_expired(struct bt_le_ext_adv *adv)
 }
 
 static void fmdn_adv_connected(struct bt_le_ext_adv *adv,
-				 struct bt_le_ext_adv_connected_info *info)
+			       struct bt_le_ext_adv_connected_info *info)
 {
 	int err;
 
-	if (!bt_fast_pair_is_ready()) {
-		return;
-	}
+	__ASSERT_NO_MSG(bt_fast_pair_is_ready());
 
 	LOG_DBG("FMDN State: peer connected");
 
 	fmdn_conns[bt_conn_index(info->conn)] = true;
 	fmdn_conn_cnt++;
+
+	if (!fp_fmdn_state_is_provisioned()) {
+		return;
+	}
 
 	if (fmdn_conn_cnt < FMDN_MAX_CONN) {
 		err = fmdn_adv_start();
@@ -973,12 +982,6 @@ static int fmdn_unprovision(void)
 		return err;
 	}
 
-	err = fmdn_adv_set_teardown();
-	if (err) {
-		LOG_ERR("FMDN State: fmdn_adv_set_teardown failed: %d", err);
-		return err;
-	}
-
 	fmdn_utp_mode_state_reset();
 
 	err = fmdn_storage_unprovision();
@@ -1042,12 +1045,6 @@ static int fmdn_new_provision(void)
 
 	/* Provision operation */
 	fp_fmdn_callbacks_provisioning_state_changed_notify(true);
-
-	err = fmdn_adv_set_setup();
-	if (err) {
-		LOG_ERR("FMDN State: fmdn_adv_set_setup failed: %d", err);
-		return err;
-	}
 
 	err = fmdn_adv_set_rotate();
 	if (err) {
@@ -1295,14 +1292,12 @@ int fp_fmdn_state_init(void)
 		return err;
 	}
 
-	/* Create advertising set if beacon is provisioned. */
-	if (is_provisioned) {
-		if (!fmdn_adv_set) {
-			err = fmdn_adv_set_setup();
-			if (err) {
-				LOG_ERR("FMDN State: fmdn_adv_set_setup failed: %d", err);
-				return err;
-			}
+	/* Reserve the FMDN advertising set only in the Fast Pair enabled state. */
+	if (!fmdn_adv_set) {
+		err = fmdn_adv_set_setup();
+		if (err) {
+			LOG_ERR("FMDN State: fmdn_adv_set_setup failed: %d", err);
+			return err;
 		}
 	}
 
@@ -1321,7 +1316,7 @@ int fp_fmdn_state_uninit(void)
 
 	is_enabled = false;
 
-	/* Disable advertising if set is active. */
+	/* Release the FMDN advertising set only in the Fast Pair disabled state. */
 	if (fmdn_adv_set) {
 		err = fmdn_adv_stop();
 		if (err) {
