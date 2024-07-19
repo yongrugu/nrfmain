@@ -1,0 +1,3 @@
+name: nrf70-supplicant-debug
+append:
+  EXTRA_CONF_FILE: overlay-nrf70-supplicant-debug.conf
