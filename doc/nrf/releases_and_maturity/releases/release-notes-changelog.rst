@@ -451,6 +451,7 @@ Modem libraries
 * :ref:`nrf_modem_lib_lte_net_if` library:
 
   * Added a log warning suggesting a SIM card to be installed if a UICC error is detected by the modem.
+  * Fixed a bug causing the cell network to be treated as offline if IPv4 is not assigned.
 
 Multiprotocol Service Layer libraries
 -------------------------------------
