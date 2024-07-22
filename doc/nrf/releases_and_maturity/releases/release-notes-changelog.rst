@@ -292,7 +292,7 @@ This section provides detailed lists of changes by :ref:`driver <drivers>`.
 Wi-Fi drivers
 -------------
 
-|no_changes_yet_note|
+* Added a new feature to recover nRF70 chip.
 
 Libraries
 =========
@@ -332,7 +332,7 @@ Modem libraries
 Libraries for networking
 ------------------------
 
-|no_changes_yet_note|
+* Added the :ref:`lib_wifi_ready` library.
 
 Libraries for NFC
 -----------------

@@ -122,6 +122,9 @@ struct nrf_wifi_hal_priv {
 	enum nrf_wifi_status (*intr_callbk_fn)(void *mac_ctx,
 					       void *event_data,
 					       unsigned int len);
+	enum nrf_wifi_status (*rpu_recovery_callbk_fn)(void *mac_ctx,
+							void *event_data,
+							unsigned int len);
 	struct nrf_wifi_hal_cfg_params cfg_params;
 	unsigned long addr_pktram_base;
 };
@@ -219,6 +222,12 @@ struct nrf_wifi_hal_dev_ctx {
 	unsigned long addr_rpu_pktram_base_rx;
 	unsigned long addr_rpu_pktram_base_rx_pool[MAX_NUM_OF_RX_QUEUES];
 	unsigned long tx_frame_offset;
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	unsigned long last_wakeup_now_asserted_time_ms;
+	unsigned long last_wakeup_now_deasserted_time_ms;
+	unsigned long last_rpu_sleep_opp_time_ms;
+	bool is_wakup_now_asserted;
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 #ifdef CONFIG_NRF_WIFI_LOW_POWER
 	enum RPU_PS_STATE rpu_ps_state;
 	void *rpu_ps_timer;
@@ -232,6 +241,8 @@ struct nrf_wifi_hal_dev_ctx {
 	unsigned int event_data_len;
 	unsigned int event_data_pending;
 	unsigned int event_resubmit;
+	void *recovery_tasklet;
+	void *lock_recovery;
 };
 
 

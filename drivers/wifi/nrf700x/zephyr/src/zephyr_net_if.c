@@ -14,6 +14,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(wifi_nrf, CONFIG_WIFI_NRF700X_LOG_LEVEL);
 
+#include <zephyr/sys/reboot.h>
+
 #include "net_private.h"
 
 #include "util.h"
@@ -37,6 +39,150 @@ extern char *net_sprint_ll_addr_buf(const uint8_t *ll, uint8_t ll_len,
 static struct net_mgmt_event_callback ip_maddr4_cb;
 static struct net_mgmt_event_callback ip_maddr6_cb;
 #endif /* CONFIG_NRF700X_STA_MODE */
+
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+static void nrf_wifi_rpu_recovery_work_handler(struct k_work *work)
+{
+	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = CONTAINER_OF(work,
+								struct nrf_wifi_vif_ctx_zep,
+								nrf_wifi_rpu_recovery_work);
+	struct nrf_wifi_ctx_zep *rpu_ctx_zep = NULL;
+	int ret;
+
+	if (!vif_ctx_zep) {
+		LOG_ERR("%s: vif_ctx_zep is NULL", __func__);
+		return;
+	}
+
+	if (!vif_ctx_zep->zep_net_if_ctx) {
+		LOG_ERR("%s: zep_net_if_ctx is NULL", __func__);
+		return;
+	}
+
+	rpu_ctx_zep = vif_ctx_zep->rpu_ctx_zep;
+	if (!rpu_ctx_zep || !rpu_ctx_zep->rpu_ctx) {
+		LOG_ERR("%s: rpu_ctx_zep is NULL", __func__);
+		return;
+	}
+
+	if (rpu_ctx_zep->rpu_recovery_in_progress) {
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+		LOG_ERR("%s: RPU recovery already in progress", __func__);
+#else
+		LOG_DBG("%s: RPU recovery already in progress", __func__);
+#endif
+		return;
+	}
+
+	if (rpu_ctx_zep->last_rpu_recovery_time_ms &&
+		((k_uptime_get() - rpu_ctx_zep->last_rpu_recovery_time_ms) <
+	    CONFIG_NRF_WIFI_RPU_RECOVERY_QUIET_PERIOD_MS)) {
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+		LOG_ERR("%s: In quiet period (last_rpu_recovery_time_ms=%ld), ignoring",
+			__func__, rpu_ctx_zep->last_rpu_recovery_time_ms);
+#else
+		LOG_DBG("%s: In quiet period (last_rpu_recovery_time_ms=%ld), ignoring",
+			__func__, rpu_ctx_zep->last_rpu_recovery_time_ms);
+#endif
+		return;
+	}
+
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	LOG_ERR("%s: Starting RPU recovery", __func__);
+#else
+	LOG_DBG("%s: Starting RPU recovery", __func__);
+#endif
+	k_mutex_lock(&rpu_ctx_zep->rpu_lock, K_FOREVER);
+#if CONFIG_NRF_WIFI_RPU_RECOVERY_MAX_RETRIES > 0
+	if (!rpu_ctx_zep->last_rpu_recovery_time_ms ||
+		(k_uptime_get() - rpu_ctx_zep->last_rpu_recovery_time_ms) <
+	    CONFIG_NRF_WIFI_RPU_RECOVERY_RETRY_WINDOW_S * MSEC_PER_SEC) {
+		if (rpu_ctx_zep->rpu_recovery_retries >=
+		    CONFIG_NRF_WIFI_RPU_RECOVERY_MAX_RETRIES) {
+			LOG_ERR("%s: Maximum recovery retries reached, rebooting system",
+				__func__);
+			sys_reboot(SYS_REBOOT_COLD);
+		}
+		rpu_ctx_zep->rpu_recovery_retries++;
+	} else {
+		rpu_ctx_zep->rpu_recovery_retries = 0;
+	}
+#endif
+	rpu_ctx_zep->rpu_recovery_in_progress = true;
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	LOG_ERR("%s: Bringing the interface down", __func__);
+#else
+	LOG_DBG("%s: Bringing the interface down", __func__);
+#endif
+	/* This indirectly does a cold-boot of RPU */
+	ret = net_if_down(vif_ctx_zep->zep_net_if_ctx);
+	if (ret) {
+		LOG_ERR("%s: net_if_down failed: %d", __func__, ret);
+		/* Continue with the recovery */
+	} else {
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+		LOG_ERR("%s: Interface down", __func__);
+#else
+		LOG_DBG("%s: Interface down", __func__);
+#endif
+	}
+	k_msleep(CONFIG_NRF_WIFI_RPU_RECOVERY_PROPAGATION_DELAY_MS);
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	LOG_ERR("%s: Bringing the interface up", __func__);
+#else
+	LOG_DBG("%s: Bringing the interface up", __func__);
+#endif
+	ret = net_if_up(vif_ctx_zep->zep_net_if_ctx);
+	if (ret) {
+		LOG_ERR("%s: net_if_up failed: %d", __func__, ret);
+	} else {
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+		LOG_ERR("%s: Interface up", __func__);
+#else
+		LOG_DBG("%s: Interface up", __func__);
+#endif
+	}
+	rpu_ctx_zep->rpu_recovery_in_progress = false;
+	rpu_ctx_zep->last_rpu_recovery_time_ms = k_uptime_get();
+	k_mutex_unlock(&rpu_ctx_zep->rpu_lock);
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	LOG_ERR("%s: RPU recovery done", __func__);
+#else
+	LOG_DBG("%s: RPU recovery done", __func__);
+#endif
+}
+
+void nrf_wifi_rpu_recovery_cb(void *vif_ctx_handle,
+		void *event_data,
+		unsigned int event_len)
+{
+	struct nrf_wifi_fmac_vif_ctx *vif_ctx = vif_ctx_handle;
+	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
+	struct nrf_wifi_fmac_dev_ctx_def *def_dev_ctx = NULL;
+	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
+
+	if (!vif_ctx) {
+		LOG_ERR("%s: vif_ctx is NULL",
+			__func__);
+		goto out;
+	}
+
+	fmac_dev_ctx = vif_ctx->fmac_dev_ctx;
+	def_dev_ctx = wifi_dev_priv(fmac_dev_ctx);
+	if (!def_dev_ctx) {
+		LOG_ERR("%s: def_dev_ctx is NULL",
+			__func__);
+		goto out;
+	}
+
+	vif_ctx_zep = vif_ctx->os_vif_ctx;
+	(void)event_data;
+
+	k_work_submit(&vif_ctx_zep->nrf_wifi_rpu_recovery_work);
+out:
+	return;
+}
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 
 #ifdef CONFIG_NRF700X_DATA_TX
 static void nrf_wifi_net_iface_work_handler(struct k_work *work)
@@ -163,20 +309,27 @@ int nrf_wifi_if_send(const struct device *dev,
 		goto out;
 	}
 
-	rpu_ctx_zep = vif_ctx_zep->rpu_ctx_zep;
-
-	if (!rpu_ctx_zep->rpu_ctx) {
+	ret = k_mutex_lock(&vif_ctx_zep->vif_lock, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("%s: Failed to lock vif_lock", __func__);
 		goto out;
+	}
+
+	rpu_ctx_zep = vif_ctx_zep->rpu_ctx_zep;
+	if (!rpu_ctx_zep || !rpu_ctx_zep->rpu_ctx) {
+		goto unlock;
 	}
 
 	if ((vif_ctx_zep->if_carr_state != NRF_WIFI_FMAC_IF_CARR_STATE_ON) ||
-	    (!vif_ctx_zep->authorized && !is_eapol(pkt))) {
-		goto out;
+		(!vif_ctx_zep->authorized && !is_eapol(pkt))) {
+		goto unlock;
 	}
 
 	ret = nrf_wifi_fmac_start_xmit(rpu_ctx_zep->rpu_ctx,
-				       vif_ctx_zep->vif_idx,
-				       net_pkt_to_nbuf(pkt));
+						vif_ctx_zep->vif_idx,
+						net_pkt_to_nbuf(pkt));
+unlock:
+	k_mutex_unlock(&vif_ctx_zep->vif_lock);
 #else
 	goto out;
 #endif /* CONFIG_NRF700X_DATA_TX */
@@ -407,6 +560,11 @@ void nrf_wifi_if_init_zep(struct net_if *iface)
 		    nrf_wifi_net_iface_work_handler);
 #endif /* CONFIG_NRF700X_DATA_TX */
 
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	k_work_init(&vif_ctx_zep->nrf_wifi_rpu_recovery_work,
+		    nrf_wifi_rpu_recovery_work_handler);
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
+
 #if !defined(CONFIG_NRF_WIFI_IF_AUTO_START)
 	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
 #endif /* CONFIG_NRF_WIFI_IF_AUTO_START */
@@ -497,6 +655,8 @@ int nrf_wifi_if_start_zep(const struct device *dev)
 			__func__);
 		goto dev_rem;
 	}
+
+	k_mutex_init(&vif_ctx_zep->vif_lock);
 
 	/* Disallow if a valid mac address has not been configured for the interface
 	 * either from the OTP or by the user
@@ -608,6 +768,12 @@ int nrf_wifi_if_stop_zep(const struct device *dev)
 		goto out;
 	}
 
+	ret = k_mutex_lock(&vif_ctx_zep->vif_lock, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("%s: Failed to lock vif_lock", __func__);
+		goto out;
+	}
+
 #ifdef CONFIG_NRF700X_STA_MODE
 #ifdef CONFIG_NRF_WIFI_LOW_POWER
 	status = nrf_wifi_fmac_set_power_save(rpu_ctx_zep->rpu_ctx,
@@ -617,7 +783,6 @@ int nrf_wifi_if_stop_zep(const struct device *dev)
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: nrf_wifi_fmac_set_power_save failed\n",
 			__func__);
-		goto out;
 	}
 #endif /* CONFIG_NRF_WIFI_LOW_POWER */
 #endif /* CONFIG_NRF700X_STA_MODE */
@@ -639,7 +804,6 @@ int nrf_wifi_if_stop_zep(const struct device *dev)
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: nrf_wifi_fmac_chg_vif_state failed\n",
 			__func__);
-		goto out;
 	}
 
 	status = nrf_wifi_fmac_del_vif(rpu_ctx_zep->rpu_ctx,
@@ -648,7 +812,6 @@ int nrf_wifi_if_stop_zep(const struct device *dev)
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: nrf_wifi_fmac_del_vif failed\n",
 			__func__);
-		goto out;
 	}
 
 	vif_ctx_zep->if_op_state = NRF_WIFI_FMAC_IF_OP_STATE_DOWN;
@@ -657,6 +820,7 @@ int nrf_wifi_if_stop_zep(const struct device *dev)
 		nrf_wifi_fmac_dev_rem_zep(&rpu_drv_priv_zep);
 	}
 	ret = 0;
+	k_mutex_unlock(&vif_ctx_zep->vif_lock);
 out:
 	return ret;
 }

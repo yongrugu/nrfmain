@@ -237,9 +237,8 @@ static void *zep_shim_nbuf_alloc(unsigned int size)
 
 static void zep_shim_nbuf_free(void *nbuf)
 {
-	struct nwb *nwb;
-
-	nwb = nbuf;
+	if (!nbuf)
+		return;
 
 	k_free(((struct nwb *)nbuf)->priv);
 
@@ -555,6 +554,20 @@ static unsigned int zep_shim_time_elapsed_us(unsigned long start_time_us)
 	return curr_time_us - start_time_us;
 }
 
+static unsigned long zep_shim_time_get_curr_ms(void)
+{
+	return k_uptime_get();
+}
+
+static unsigned int zep_shim_time_elapsed_ms(unsigned long start_time_ms)
+{
+	unsigned long curr_time_ms = 0;
+
+	curr_time_ms = zep_shim_time_get_curr_ms();
+
+	return curr_time_ms - start_time_ms;
+}
+
 static enum nrf_wifi_status zep_shim_bus_qspi_dev_init(void *os_qspi_dev_ctx)
 {
 	ARG_UNUSED(os_qspi_dev_ctx);
@@ -562,11 +575,10 @@ static enum nrf_wifi_status zep_shim_bus_qspi_dev_init(void *os_qspi_dev_ctx)
 	return NRF_WIFI_STATUS_SUCCESS;
 }
 
-static void zep_shim_bus_qspi_dev_deinit(void *os_qspi_dev_ctx)
+static void zep_shim_bus_qspi_dev_deinit(void *priv)
 {
-	struct qspi_dev *dev = NULL;
-
-	dev = os_qspi_dev_ctx;
+	struct zep_shim_bus_qspi_priv *qspi_priv = priv;
+	struct qspi_dev *dev = qspi_priv->qspi_dev;
 
 	dev->deinit();
 }
@@ -574,7 +586,7 @@ static void zep_shim_bus_qspi_dev_deinit(void *os_qspi_dev_ctx)
 static void *zep_shim_bus_qspi_dev_add(void *os_qspi_priv, void *osal_qspi_dev_ctx)
 {
 	struct zep_shim_bus_qspi_priv *zep_qspi_priv = os_qspi_priv;
-	struct qspi_dev *qdev = qspi_dev();
+	struct qspi_dev *dev = qspi_dev();
 	int ret;
 	enum nrf_wifi_status status;
 
@@ -584,7 +596,7 @@ static void *zep_shim_bus_qspi_dev_add(void *os_qspi_priv, void *osal_qspi_dev_c
 		return NULL;
 	}
 
-	status = qdev->init(qspi_defconfig());
+	status = dev->init(qspi_defconfig());
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: QSPI device init failed\n", __func__);
 		return NULL;
@@ -595,17 +607,18 @@ static void *zep_shim_bus_qspi_dev_add(void *os_qspi_priv, void *osal_qspi_dev_c
 		LOG_ERR("%s: RPU enable failed with error %d\n", __func__, ret);
 		return NULL;
 	}
-	zep_qspi_priv->qspi_dev = qdev;
+	zep_qspi_priv->qspi_dev = dev;
 	zep_qspi_priv->dev_added = true;
 
 	return zep_qspi_priv;
 }
 
-static void zep_shim_bus_qspi_dev_rem(void *os_qspi_dev_ctx)
+static void zep_shim_bus_qspi_dev_rem(void *priv)
 {
-	struct qspi_dev *dev = NULL;
+	struct zep_shim_bus_qspi_priv *qspi_priv = priv;
+	struct qspi_dev *dev = qspi_priv->qspi_dev;
 
-	dev = os_qspi_dev_ctx;
+	ARG_UNUSED(dev);
 
 	/* TODO: Make qspi_dev a dynamic instance and remove it here */
 	rpu_disable();
@@ -670,6 +683,11 @@ static void irq_work_handler(struct k_work *work)
 {
 	int ret = 0;
 
+	if (!intr_priv) {
+		LOG_ERR("%s: Invalid intr_priv\n", __func__);
+		return;
+	}
+
 	ret = intr_priv->callbk_fn(intr_priv->callbk_data);
 
 	if (ret) {
@@ -684,6 +702,11 @@ static void zep_shim_irq_handler(const struct device *dev, struct gpio_callback 
 {
 	ARG_UNUSED(cb);
 	ARG_UNUSED(pins);
+
+	if (!intr_priv) {
+		LOG_ERR("%s: Invalid intr_priv\n", __func__);
+		return;
+	}
 
 	k_work_schedule_for_queue(&zep_wifi_intr_q, &intr_priv->work, K_NO_WAIT);
 }
@@ -865,6 +888,8 @@ static const struct nrf_wifi_osal_ops nrf_wifi_os_zep_ops = {
 	.delay_us = k_usleep,
 	.time_get_curr_us = zep_shim_time_get_curr_us,
 	.time_elapsed_us = zep_shim_time_elapsed_us,
+	.time_get_curr_ms = zep_shim_time_get_curr_ms,
+	.time_elapsed_ms = zep_shim_time_elapsed_ms,
 
 	.bus_qspi_init = zep_shim_bus_qspi_init,
 	.bus_qspi_deinit = zep_shim_bus_qspi_deinit,

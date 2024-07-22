@@ -109,7 +109,7 @@ struct nrf_wifi_vif_ctx_zep *nrf_wifi_get_vif_ctx(struct net_if *iface)
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
 	struct nrf_wifi_ctx_zep *rpu_ctx = &rpu_drv_priv_zep.rpu_ctx_zep;
 
-	if (!iface || !rpu_ctx) {
+	if (!iface || !rpu_ctx || !rpu_ctx->rpu_ctx) {
 		return NULL;
 	}
 
@@ -256,7 +256,7 @@ static void nrf_wifi_process_rssi_from_rx(void *vif_ctx,
 
 	rpu_ctx_zep = vif_ctx_zep->rpu_ctx_zep;
 
-	if (!rpu_ctx_zep) {
+	if (!rpu_ctx_zep || !rpu_ctx_zep->rpu_ctx) {
 		LOG_ERR("%s: rpu_ctx_zep is NULL\n", __func__);
 		return;
 	}
@@ -301,6 +301,7 @@ int nrf_wifi_reg_domain(const struct device *dev, struct wifi_reg_domain *reg_do
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
 	struct nrf_wifi_ctx_zep *rpu_ctx_zep = NULL;
+	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
 	struct nrf_wifi_vif_ctx_zep *vif_ctx_zep = NULL;
 	struct nrf_wifi_fmac_reg_info reg_domain_info = {0};
 	int ret = -1;
@@ -323,18 +324,24 @@ int nrf_wifi_reg_domain(const struct device *dev, struct wifi_reg_domain *reg_do
 		goto err;
 	}
 
+	fmac_dev_ctx = rpu_ctx_zep->rpu_ctx;
+	if (!fmac_dev_ctx) {
+		LOG_ERR("%s: fmac_dev_ctx is NULL", __func__);
+		goto err;
+	}
+
 	if (reg_domain->oper == WIFI_MGMT_SET) {
 		memcpy(reg_domain_info.alpha2, reg_domain->country_code, WIFI_COUNTRY_CODE_LEN);
 
 		reg_domain_info.force = reg_domain->force;
 
-		status = nrf_wifi_fmac_set_reg(rpu_ctx_zep->rpu_ctx, &reg_domain_info);
+		status = nrf_wifi_fmac_set_reg(fmac_dev_ctx, &reg_domain_info);
 		if (status != NRF_WIFI_STATUS_SUCCESS) {
 			LOG_ERR("%s: Failed to set regulatory domain\n", __func__);
 			goto err;
 		}
 	} else if (reg_domain->oper == WIFI_MGMT_GET) {
-		status = nrf_wifi_fmac_get_reg(rpu_ctx_zep->rpu_ctx, &reg_domain_info);
+		status = nrf_wifi_fmac_get_reg(fmac_dev_ctx, &reg_domain_info);
 		if (status != NRF_WIFI_STATUS_SUCCESS) {
 			LOG_ERR("%s: Failed to get regulatory domain\n", __func__);
 			goto err;
@@ -520,7 +527,7 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
 	if (!rpu_ctx) {
 		LOG_ERR("%s: nrf_wifi_fmac_dev_add failed\n", __func__);
 		rpu_ctx_zep = NULL;
-		goto out;
+		goto err;
 	}
 
 	rpu_ctx_zep->rpu_ctx = rpu_ctx;
@@ -528,7 +535,7 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
 	status = nrf_wifi_fw_load(rpu_ctx);
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: nrf_wifi_fw_load failed\n", __func__);
-		goto out;
+		goto err;
 	}
 
 	status = nrf_wifi_fmac_ver_get(rpu_ctx,
@@ -536,7 +543,7 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: FW version read failed\n", __func__);
-		goto out;
+		goto err;
 	}
 
 	LOG_DBG("Firmware (v%d.%d.%d.%d) booted successfully\n",
@@ -574,9 +581,22 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		LOG_ERR("%s: nrf_wifi_fmac_dev_init failed\n", __func__);
-		goto out;
+		goto err;
 	}
-out:
+
+	return status;
+err:
+	if (rpu_ctx) {
+#ifdef CONFIG_NRF700X_RADIO_TEST
+		nrf_wifi_fmac_dev_rem_rt(rpu_ctx);
+#else
+		nrf_wifi_fmac_dev_rem(rpu_ctx);
+#endif /* CONFIG_NRF700X_RADIO_TEST */
+		rpu_ctx_zep->rpu_ctx = NULL;
+	}
+
+	k_mutex_init(&rpu_ctx_zep->rpu_lock);
+
 	return status;
 }
 
@@ -592,6 +612,11 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_rem_zep(struct nrf_wifi_drv_priv_zep *drv
 	nrf_wifi_fmac_dev_deinit(rpu_ctx_zep->rpu_ctx);
 	nrf_wifi_fmac_dev_rem(rpu_ctx_zep->rpu_ctx);
 #endif /* CONFIG_NRF700X_RADIO_TEST */
+
+	free(rpu_ctx_zep->extended_capa);
+	rpu_ctx_zep->extended_capa = NULL;
+	free(rpu_ctx_zep->extended_capa_mask);
+	rpu_ctx_zep->extended_capa_mask = NULL;
 
 	rpu_ctx_zep->rpu_ctx = NULL;
 	LOG_DBG("%s: FMAC device removed\n", __func__);
@@ -628,6 +653,9 @@ static int nrf_wifi_drv_main_zep(const struct device *dev)
 	rx_buf_pools[1].buf_sz = rx2_buf_sz;
 	rx_buf_pools[2].buf_sz = rx3_buf_sz;
 
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	callbk_fns.rpu_recovery_callbk_fn = nrf_wifi_rpu_recovery_cb;
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 	callbk_fns.scan_start_callbk_fn = nrf_wifi_event_proc_scan_start_zep;
 	callbk_fns.scan_done_callbk_fn = nrf_wifi_event_proc_scan_done_zep;
 #ifdef CONFIG_NET_L2_WIFI_MGMT

@@ -158,11 +158,10 @@ out:
 static enum nrf_wifi_status hal_rpu_irq_wdog_ack(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
-	unsigned int val = 0;
 
 	status = hal_rpu_reg_write(hal_dev_ctx,
-				   RPU_REG_MIPS_MCU_TIMER_CONTROL,
-				   val);
+				   RPU_REG_MIPS_MCU_UCCP_INT_CLEAR,
+				   1 << RPU_REG_BIT_MIPS_WATCHDOG_INT_CLEAR);
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
@@ -174,6 +173,24 @@ static enum nrf_wifi_status hal_rpu_irq_wdog_ack(struct nrf_wifi_hal_dev_ctx *ha
 out:
 	return status;
 
+}
+
+static enum nrf_wifi_status hal_rpu_irq_wdog_rearm(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx)
+{
+	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
+
+	status = hal_rpu_reg_write(hal_dev_ctx,
+				  RPU_REG_MIPS_MCU_TIMER,
+				  RPU_REG_MIPS_MCU_TIMER_RESET_VAL);
+
+	if (status != NRF_WIFI_STATUS_SUCCESS) {
+		nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
+				      "%s: Rearming watchdog interrupt failed",
+				      __func__);
+		goto out;
+	}
+out:
+	return status;
 }
 
 
@@ -388,8 +405,8 @@ static enum nrf_wifi_status hal_rpu_event_get(struct nrf_wifi_hal_dev_ctx *hal_d
 
 		if (!event) {
 			nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
-					      "%s: Unable to alloc HAL msg for event\n",
-					      __func__);
+					      "%s: Unable to alloc HAL msg for event, len %d\n",
+					      __func__, hal_dev_ctx->event_data_len);
 			nrf_wifi_osal_mem_free(hal_dev_ctx->hpriv->opriv,
 					       hal_dev_ctx->event_data);
 			hal_dev_ctx->event_data = NULL;
@@ -480,12 +497,90 @@ out:
 	return num_events;
 }
 
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+static inline bool is_rpu_recovery_needed(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx)
+{
+	unsigned int rpu_sleep_opp_diff_ms = nrf_wifi_osal_time_elapsed_ms(
+		hal_dev_ctx->hpriv->opriv,
+		hal_dev_ctx->last_rpu_sleep_opp_time_ms);
 
-enum nrf_wifi_status hal_rpu_irq_process(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx)
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	nrf_wifi_osal_log_info(hal_dev_ctx->hpriv->opriv,
+			      "RPU sleep opp diff: %d ms, last RPU sleep opp time: %lu",
+			      rpu_sleep_opp_diff_ms,
+			      hal_dev_ctx->last_rpu_sleep_opp_time_ms);
+#else
+	nrf_wifi_osal_log_dbg(hal_dev_ctx->hpriv->opriv,
+			      "RPU sleep opp diff: %d ms, last RPU sleep opp time: %lu",
+			      rpu_sleep_opp_diff_ms,
+			      hal_dev_ctx->last_rpu_sleep_opp_time_ms);
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG */
+
+	if (rpu_sleep_opp_diff_ms >= CONFIG_NRF_WIFI_RPU_RECOVERY_PS_ACTIVE_TIMEOUT_MS) {
+		return false;
+	}
+
+	return true;
+}
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
+
+static enum nrf_wifi_status hal_rpu_process_wdog(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx,
+						  bool *do_rpu_recovery)
+{
+	enum nrf_wifi_status nrf_wifi_status = NRF_WIFI_STATUS_FAIL;
+	bool rpu_recovery = false;
+
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	nrf_wifi_osal_log_info(hal_dev_ctx->hpriv->opriv,
+			      "Processing watchdog interrupt");
+#else
+	nrf_wifi_osal_log_dbg(hal_dev_ctx->hpriv->opriv,
+			      "Processing watchdog interrupt");
+#endif
+
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	/* Check if host has asserted WAKEUP_NOW or if the RPU has been in
+	 * PS_ACTIVE state for more than the timeout period
+	 */
+	if (!is_rpu_recovery_needed(hal_dev_ctx)) {
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+		nrf_wifi_osal_log_info(hal_dev_ctx->hpriv->opriv,
+				      "Ignore watchdog interrupt, RPU recovery not needed");
+#else
+		nrf_wifi_osal_log_dbg(hal_dev_ctx->hpriv->opriv,
+				      "Ignore watchdog interrupt, RPU recovery not needed");
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG */
+		goto out;
+	}
+
+	rpu_recovery = true;
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
+
+	if (!rpu_recovery) {
+		hal_rpu_irq_wdog_rearm(hal_dev_ctx);
+		goto out;
+	}
+
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG
+	nrf_wifi_osal_log_info(hal_dev_ctx->hpriv->opriv,
+			      "RPU recovery needed");
+#else
+	nrf_wifi_osal_log_dbg(hal_dev_ctx->hpriv->opriv,
+			      "RPU recovery needed");
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY_DEBUG */
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
+out:
+	nrf_wifi_status = NRF_WIFI_STATUS_SUCCESS;
+	*do_rpu_recovery = rpu_recovery;
+
+	return nrf_wifi_status;
+}
+
+enum nrf_wifi_status hal_rpu_irq_process(struct nrf_wifi_hal_dev_ctx *hal_dev_ctx,
+		bool *do_rpu_recovery)
 {
 	enum nrf_wifi_status status = NRF_WIFI_STATUS_FAIL;
-	unsigned int num_events = 0;
-
 
 	/* Get all the events in the queue. It is possible that there are no
 	 * events in the queue. This is a valid scenario as per our present
@@ -498,29 +593,29 @@ enum nrf_wifi_status hal_rpu_irq_process(struct nrf_wifi_hal_dev_ctx *hal_dev_ct
 	 * the interrupt source. This will be a problem in shared interrupt
 	 * scenarios and has to be taken care by the SOC designers.
 	 */
-	num_events = hal_rpu_event_get_all(hal_dev_ctx);
+	(void)hal_rpu_event_get_all(hal_dev_ctx);
 
-	/* If we received an interrupt without any associated event(s) it is a
-	 * likely indication that the RPU is stuck and this interrupt has been
-	 * raised by the watchdog
+	/* Check the if this interrupt has been raised by the
+	 * RPU watchdog
 	 */
-	if (!num_events) {
-		/* Check the if this interrupt has been raised by the
-		 * RPU watchdog
-		 */
-		if (hal_rpu_irq_wdog_chk(hal_dev_ctx)) {
-			/* TODO: Perform RPU recovery */
-			nrf_wifi_osal_log_dbg(hal_dev_ctx->hpriv->opriv,
-					      "Received watchdog interrupt\n");
+	if (hal_rpu_irq_wdog_chk(hal_dev_ctx)) {
+		nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
+						"Received watchdog interrupt");
 
-			status = hal_rpu_irq_wdog_ack(hal_dev_ctx);
+		status = hal_rpu_process_wdog(hal_dev_ctx, do_rpu_recovery);
+		if (status == NRF_WIFI_STATUS_FAIL) {
+			nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
+							"%s: hal_rpu_process_wdog failed",
+							__func__);
+			goto out;
+		}
 
-			if (status == NRF_WIFI_STATUS_FAIL) {
-				nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
-						      "%s: hal_rpu_irq_wdog_ack failed\n",
-						      __func__);
-				goto out;
-			}
+		status = hal_rpu_irq_wdog_ack(hal_dev_ctx);
+		if (status == NRF_WIFI_STATUS_FAIL) {
+			nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
+							"%s: hal_rpu_irq_wdog_ack failed",
+							__func__);
+			goto out;
 		}
 	}
 
@@ -528,7 +623,7 @@ enum nrf_wifi_status hal_rpu_irq_process(struct nrf_wifi_hal_dev_ctx *hal_dev_ct
 
 	if (status == NRF_WIFI_STATUS_FAIL) {
 		nrf_wifi_osal_log_err(hal_dev_ctx->hpriv->opriv,
-				      "%s: hal_rpu_irq_ack failed\n",
+				      "%s: hal_rpu_irq_ack failed",
 				      __func__);
 		goto out;
 	}

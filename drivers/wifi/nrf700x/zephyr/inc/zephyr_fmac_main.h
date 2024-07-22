@@ -45,6 +45,7 @@ struct nrf_wifi_vif_ctx_zep {
 	void *supp_drv_if_ctx;
 	void *rpu_ctx_zep;
 	unsigned char vif_idx;
+	struct k_mutex vif_lock;
 
 	scan_result_cb_t disp_scan_cb;
 	bool scan_in_progress;
@@ -70,11 +71,6 @@ struct nrf_wifi_vif_ctx_zep {
 	struct wifi_ps_config *ps_info;
 	bool ps_config_info_evnt;
 	bool authorized;
-	struct nrf_wifi_ext_capa {
-		enum nrf_wifi_iftype iftype;
-		unsigned char *ext_capa, *ext_capa_mask;
-		unsigned int ext_capa_len;
-	} iface_ext_capa;
 	bool cookie_resp_received;
 #ifdef CONFIG_NRF700X_DATA_TX
 	struct k_work nrf_wifi_net_iface_work;
@@ -82,6 +78,9 @@ struct nrf_wifi_vif_ctx_zep {
 	unsigned long rssi_record_timestamp_us;
 	signed short rssi;
 #endif /* CONFIG_NRF700X_STA_MODE */
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	struct k_work nrf_wifi_rpu_recovery_work;
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 };
 
 struct nrf_wifi_vif_ctx_map {
@@ -105,6 +104,12 @@ struct nrf_wifi_ctx_zep {
 #endif /* CONFIG_NRF700X_RADIO_TEST */
 	unsigned char *extended_capa, *extended_capa_mask;
 	unsigned int extended_capa_len;
+	struct k_mutex rpu_lock;
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+	bool rpu_recovery_in_progress;
+	unsigned long last_rpu_recovery_time_ms;
+	unsigned int rpu_recovery_retries;
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 };
 
 struct nrf_wifi_drv_priv_zep {
@@ -124,5 +129,10 @@ enum nrf_wifi_status nrf_wifi_fmac_dev_add_zep(struct nrf_wifi_drv_priv_zep *drv
 enum nrf_wifi_status nrf_wifi_fmac_dev_rem_zep(struct nrf_wifi_drv_priv_zep *drv_priv_zep);
 enum nrf_wifi_status nrf_wifi_fw_load(void *rpu_ctx);
 struct nrf_wifi_vif_ctx_zep *nrf_wifi_get_vif_ctx(struct net_if *iface);
+#ifdef CONFIG_NRF_WIFI_RPU_RECOVERY
+void nrf_wifi_rpu_recovery_cb(void *vif_ctx,
+		void *event_data,
+		unsigned int event_len);
+#endif /* CONFIG_NRF_WIFI_RPU_RECOVERY */
 
 #endif /* __ZEPHYR_FMAC_MAIN_H__ */
