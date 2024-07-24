@@ -44,7 +44,7 @@ Build and configuration system
      This has security implications and may allow secrets to be leaked to the non-secure application in RAM.
 
 * Added documentation for :ref:`qspi_xip_split_image` functionality.
-* Added migration guide for QSPI XIP split image from child/parent image to sysbuild migration page.
+* Added a section in the sysbuild-related migration guide about the migration of :ref:`child_parent_to_sysbuild_migration_qspi_xip` from child/parent image to sysbuild.
 
 Working with nRF91 Series
 =========================
@@ -337,8 +337,8 @@ nRF5340 samples
 
 * :ref:`smp_svr_ext_xip` sample:
 
-  * This sample has been converted to sysbuild.
-  * Support has been added to demonstrate directXIP building and building without network core support.
+  * This sample has been converted to support sysbuild.
+  * Support has been added to demonstrate direct-XIP building and building without network core support.
 
 Peripheral samples
 ------------------
