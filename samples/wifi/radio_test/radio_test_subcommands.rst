@@ -210,7 +210,7 @@ Wi-Fi radio test subcommands
        | 2 = Packet capture
      - N/A
      - Action
-     - Capture ADC samples at 40 MHz sampling rate, capture filtered ADC samples at 20 MHz sampling rate or capture packets at 20 MHz sampling rate after valid packet detection.
+     - Capture ADC samples at 40 MHz sampling rate, capture filtered ADC samples at 20 MHz sampling rate, or capture packets at 20 MHz sampling rate after valid packet detection.
    * - tx_tone
      - | 0: Disable tone
        | 1: Enable tone
