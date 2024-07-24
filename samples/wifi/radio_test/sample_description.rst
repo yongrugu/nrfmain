@@ -510,7 +510,7 @@ Testing
               The captured samples will vary from run to run.
             * The capture is taken after WLAN packet detection, so it will not have the first few samples in the first WLAN packet.
             * Smaller packets should be used so that multiple packets can be seen in the capture.
-            * In clean RF environment packet detection does not take place.
+            * Packet detection does not take place in a clean RF environment.
             * Command will timeout if no packets are detected within set timeout period. 
 
 
