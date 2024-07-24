@@ -494,7 +494,7 @@ Testing
               FDDF45
               07CF3D
 
-           In clean RF environment packet detection does not take place, with following output:
+           Packet detection does not take place in a clean RF environment, producing the following output:
 
            .. code-block:: console
 
