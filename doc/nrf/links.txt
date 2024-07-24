@@ -573,8 +573,9 @@
 .. _`nRF Sniffer for Bluetooth LE`: https://docs.nordicsemi.com/bundle/nrfutil/page/nrfutil-ble-sniffer/guides/overview.html
 .. _`nRF Connect Bluetooth Low Energy`: https://docs.nordicsemi.com/bundle/nrf-connect-ble/page/index.html
 .. _`Cellular Monitor`: https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/index.html
-.. _`nPM PowerUP`: https://docs.nordicsemi.com/bundle/nan_045/page/APP/nan_045/profiling_npm_powerup.html
+.. _`nPM PowerUP`: https://docs.nordicsemi.com/bundle/nrf-connect-npm/page/index.html
 .. _`Quick Start`: https://docs.nordicsemi.com/bundle/nrf-connect-quickstart/page/index.html
+.. _`RSSI Viewer`: https://docs.nordicsemi.com/bundle/nrf-connect-rssi-viewer/page/index.html
 
 .. _`Managing credentials`: https://docs.nordicsemi.com/bundle/nrf-connect-cellularmonitor/page/managing_credentials.html
 
@@ -1440,6 +1441,7 @@
 
 .. _`BME688`: https://www.bosch-sensortec.com/products/environmental-sensors/gas-sensors/bme688/
 .. _`BME680`: https://www.bosch-sensortec.com/products/environmental-sensors/gas-sensors/bme680/
+.. _`BMI270`: https://www.bosch-sensortec.com/products/motion-sensors/imus/bmi270/
 .. _`Bosch BSEC`: https://www.bosch-sensortec.com/software-tools/software/bsec/
 .. _`BSEC license`: https://www.bosch-sensortec.com/media/boschsensortec/downloads/software/bme688_development_software/2023_04/license_terms_bme688_bme680_bsec.pdf
 

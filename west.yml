@@ -63,7 +63,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: 9772e053ade8b6f3cb6448bdf48254171a3fe610
+      revision: bd373f15cc4f05044fa645cbc7941bdf4285f43c
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -144,7 +144,7 @@ manifest:
     - name: oberon-psa-crypto
       path: modules/crypto/oberon-psa-crypto
       repo-path: sdk-oberon-psa-crypto
-      revision: e0800ec5283ba89b2619919ef1889d98a9a79132
+      revision: 61ce2eed8bfe94bfd1547b27f01885ec1486847c
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
@@ -152,7 +152,7 @@ manifest:
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: v2.0.0-ncs2
+      revision: beb7825332ac2184b972e71d297564854408bffd
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests
@@ -160,7 +160,7 @@ manifest:
     - name: matter
       repo-path: sdk-connectedhomeip
       path: modules/lib/matter
-      revision: 4d8e75cf312083c39be9523f2ff92bc8359bbf02
+      revision: 0ada603e141a23e9be9634ae1a843b5ee5998560
       west-commands: scripts/west/west-commands.yml
       submodules:
         - name: nlio
@@ -194,7 +194,7 @@ manifest:
       # Only for internal Nordic development
       repo-path: dragoon.git
       remote: dragoon
-      revision: 4377a9de2d55e0080ac70fe50718615b72dde608
+      revision: 2a50868aa94c4607da2d956fb6d05193f3b1e900
       submodules: true
       groups:
         - dragoon
@@ -209,12 +209,12 @@ manifest:
           compare-by-default: false
     - name: sidewalk
       repo-path: sdk-sidewalk
-      revision: c1724a7e36c090504ba881ffc8401394402b20bc
+      revision: ec5b68df4398594fdb569942993cdc1b4acbee0b
       groups:
         - sidewalk
     - name: find-my
       repo-path: sdk-find-my
-      revision: bb7ca9679b87c076a7034f384ad922abbb29af40
+      revision: 9ad5b807e957e98fe66c4f9e3d0ec5a8a0496ecc
       groups:
         - find-my
     - name: azure-sdk-for-c

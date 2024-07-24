@@ -102,7 +102,7 @@ Amazon Sidewalk
 Bluetooth® LE
 -------------
 
-|no_changes_yet_note|
+* The correct SoftDevice Controller library :kconfig:option:`CONFIG_BT_LL_SOFTDEVICE_MULTIROLE` will now be selected automatically when using coexistence based on :kconfig:option:`CONFIG_MPSL_CX` for nRF52-series devices.
 
 Bluetooth Mesh
 --------------
@@ -193,6 +193,7 @@ Matter Bridge
 
   * The :kconfig:option:`CONFIG_NCS_SAMPLE_MATTER_ZAP_FILES_PATH` Kconfig option, which specifies ZAP files location for the application.
     By default, the option points to the :file:`src/default_zap` directory and can be changed to any path relative to application's location that contains the ZAP file and :file:`zap-generated` directory.
+  * Support for the :ref:`zephyr:nrf54h20dk_nrf54h20`.
 
 nRF5340 Audio
 -------------
@@ -204,8 +205,13 @@ nRF Desktop
 
 * Added a debug configuration enabling the `Fast Pair`_ feature on the nRF54L15 PDK with the ``nrf54l15pdk/nrf54l15/cpuapp`` board target.
 
-* Updated the :kconfig:option:`CONFIG_BT_ADV_PROV_TX_POWER_CORRECTION_VAL` Kconfig option value in configurations with the Fast Pair support.
-  The value is now aligned with the Fast Pair requirements.
+* Updated:
+
+  * The :kconfig:option:`CONFIG_BT_ADV_PROV_TX_POWER_CORRECTION_VAL` Kconfig option value in configurations with the Fast Pair support.
+    The value is now aligned with the Fast Pair requirements.
+  * The :kconfig:option:`CONFIG_NRF_RRAM_WRITE_BUFFER_SIZE` Kconfig option value in the nRF54L15 PDK configurations to ensure short write slots.
+    It prevents timeouts in the MPSL flash synchronization caused by allocating long write slots while maintaining a Bluetooth LE connection with short intervals and no connection latency.
+
 
 nRF Machine Learning (Edge Impulse)
 -----------------------------------
@@ -331,7 +337,9 @@ nRF5340 samples
 Peripheral samples
 ------------------
 
-|no_changes_yet_note|
+* :ref:`802154_sniffer` sample:
+
+  * Increased the number of RX buffers to reduce the chances of frame drops during high traffic periods.
 
 PMIC samples
 ------------
@@ -409,7 +417,11 @@ Bluetooth libraries and services
 
 * :ref:`bt_fast_pair_readme` library:
 
-  * Added the :kconfig:option:`CONFIG_BT_FAST_PAIR_SUBSEQUENT_PAIRING` Kconfig option allowing the user to control the support for the Fast Pair subsequent pairing feature.
+  * Added:
+
+    * The :kconfig:option:`CONFIG_BT_FAST_PAIR_SUBSEQUENT_PAIRING` Kconfig option allowing the user to control the support for the Fast Pair subsequent pairing feature.
+    * The :kconfig:option:`CONFIG_BT_FAST_PAIR_USE_CASE` Kconfig choice option allowing the user to select their target Fast Pair use case.
+      The :kconfig:option:`CONFIG_BT_FAST_PAIR_USE_CASE_UNKNOWN` and :kconfig:option:`CONFIG_BT_FAST_PAIR_USE_CASE_LOCATOR_TAG` Kconfig options represent the supported use cases that can be selected as part of this Kconfig choice option.
 
 * :ref:`bt_le_adv_prov_readme`:
 
@@ -445,7 +457,7 @@ Modem libraries
 Multiprotocol Service Layer libraries
 -------------------------------------
 
-|no_changes_yet_note|
+* The Kconfig option ``CONFIG_MPSL_CX_THREAD`` has been renamed to :kconfig:option:`CONFIG_MPSL_CX_3WIRE` to better indicate multiprotocol compatibility.
 
 Libraries for networking
 ------------------------
@@ -612,4 +624,4 @@ cJSON
 Documentation
 =============
 
-|no_changes_yet_note|
+* Added the :ref:`peripheral_sensor_node_shield` page.
