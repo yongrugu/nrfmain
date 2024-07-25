@@ -96,7 +96,7 @@ static bool key_is_valid(uint32_t key_idx)
 		return false;
 	}
 
-	const uint32_t token = bl_storage_word_read(&BL_STORAGE->key_data[key_idx].valid);
+	const uint32_t token = bl_storage_word_read((uint32_t)&BL_STORAGE->key_data[key_idx].valid);
 	const uint32_t invalid_val = INVALID_VAL | key_idx << TOKEN_IDX_OFFSET;
 	const uint32_t valid_val = VALID_VAL | key_idx << TOKEN_IDX_OFFSET;
 
@@ -166,7 +166,6 @@ void invalidate_public_key(uint32_t key_idx)
 
 	if (key_is_valid(key_idx)) {
 		/* Write if not already written. */
-		nrfx_nvmc_word_write((uint32_t)invalidation_token, INVALID_WRITE_VAL);
 #ifdef CONFIG_NRFX_NVMC
 		nrfx_nvmc_word_write((uint32_t)invalidation_token, INVALID_WRITE_VAL);
 #else
