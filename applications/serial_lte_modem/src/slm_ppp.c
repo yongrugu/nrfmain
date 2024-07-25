@@ -342,7 +342,8 @@ static void at_cereg_callback(const char *at_cmd)
 	case 3:
 	case 4:
 	case 90:
-		ppp_stop();
+		k_work_schedule_for_queue(&slm_work_q, &ppp_stop_work.work,
+					  SLM_UART_RESPONSE_DELAY);
 		break;
 	}
 }
