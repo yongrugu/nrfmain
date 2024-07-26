@@ -499,10 +499,11 @@ Libraries for networking
 * :ref:`lib_nrf_cloud_coap` library:
 
   * Fixed a hard fault that occurred when encoding AGNSS request data and the ``net_info`` field of the :c:struct:`nrf_cloud_rest_agnss_request` structure is NULL.
-
-* :ref:`lib_nrf_cloud_coap` library:
-
   * Updated to use a shorter resource string for the ``d2c/bulk`` resource.
+
+* :ref:`lib_nrf_cloud_log` library:
+
+  * Added support for dictionary (binary) logs when connected to nRF Cloud using CoAP.
 
 Libraries for NFC
 -----------------
