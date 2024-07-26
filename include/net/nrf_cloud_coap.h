@@ -395,7 +395,8 @@ int nrf_cloud_coap_shadow_delta_process(const struct nrf_cloud_data *in_data,
 					struct nrf_cloud_obj *const delta_out);
 
 /**
- * @brief Send raw bytes to nRF Cloud.
+ * @brief Send raw bytes to nRF Cloud on the /msg/d2c/raw topic. The data sent can be for any
+ * purpose.
  *
  * @param[in]     buf buffer with binary string.
  * @param[in]     buf_len  length of buf in bytes.
@@ -406,6 +407,21 @@ int nrf_cloud_coap_shadow_delta_process(const struct nrf_cloud_data *in_data,
  *           defined in zephyr/net/coap.h.
  */
 int nrf_cloud_coap_bytes_send(uint8_t *buf, size_t buf_len, bool confirmable);
+
+/**
+ * @brief Send binary log data to nRF Cloud on the /msg/d2c/bin topic. The data sent should
+ * come from the nrf_cloud_log_backend. It will be assembled in sequential order and made
+ * available for download by the nRF Cloud REST API or website.
+ *
+ * @param[in]     buf buffer with binary string.
+ * @param[in]     buf_len  length of buf in bytes.
+ * @param[in]     confirmable Select whether to use a CON or NON CoAP transfer.
+ * @return 0 If successful, nonzero if failed.
+ *           Negative values are device-side errors defined in errno.h.
+ *           Positive values are cloud-side errors (CoAP result codes)
+ *           defined in zephyr/net/coap.h.
+ */
+int nrf_cloud_coap_bin_send(const uint8_t * const buf, size_t buf_len, bool confirmable);
 
 /**
  * @brief Send an nRF Cloud object
