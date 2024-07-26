@@ -319,6 +319,35 @@ static void ppp_stop(void)
 	}
 }
 
+AT_MONITOR(at_cereg, "+CEREG:", at_cereg_callback);
+
+static void at_cereg_callback(const char *at_cmd)
+{
+	int ret;
+	unsigned int n, stat;
+
+	LOG_DBG("Received \"%s\".", at_cmd);
+
+	ret = sscanf(at_cmd, "+CEREG: %u,%u", &n, &stat);
+	if (ret != 2) {
+		ret = sscanf(at_cmd, "+CEREG: %u", &stat);
+		if (ret != 1) {
+			LOG_ERR("Failed to parse \"%s\".", at_cmd);
+			return;
+		}
+	}
+	switch (stat) {
+	case 0:
+	case 2:
+	case 3:
+	case 4:
+	case 90:
+		k_work_schedule_for_queue(&slm_work_q, &ppp_stop_work.work,
+					  SLM_UART_RESPONSE_DELAY);
+		break;
+	}
+}
+
 /* Automatically starts/stops PPP when the default PDN connection goes up/down. */
 static void pdp_ctx_event_handler(uint8_t cid, enum pdn_event event, int reason)
 {
