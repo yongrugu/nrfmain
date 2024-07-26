@@ -105,6 +105,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 
 	if (err) {
 		LOG_ERR("Create conn to %s failed (%d)", name_str, err);
+	} else {
+		bt_conn_unref(conn);
 	}
 }
 
