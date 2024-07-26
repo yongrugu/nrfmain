@@ -36,6 +36,10 @@
 
 ipc0: &cpuapp_cpuppr_ipc {
 	status = "okay";
+	bt_hci_ipc0: bt_hci_ipc0 {
+		compatible = "zephyr,bt-hci-ipc";
+		status = "okay";
+	};
 };
 
 &cpuppr_ram3x_region {

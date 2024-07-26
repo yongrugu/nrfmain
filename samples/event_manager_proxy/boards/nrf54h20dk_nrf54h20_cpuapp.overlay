@@ -17,6 +17,10 @@
 
 ipc0: &cpuapp_cpuppr_ipc {
 	status = "okay";
+       bt_hci_ipc0: bt_hci_ipc0 {
+              compatible = "zephyr,bt-hci-ipc";
+              status = "okay";
+       };
 };
 
 /* UART and RAM3 instance used by PPR should be enabled at build time
