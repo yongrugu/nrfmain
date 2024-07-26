@@ -68,6 +68,7 @@ See the following user guides to learn more:
    bootloader_adding_sysbuild
    bootloader_testing
    bootloader_external_flash
+   qspi_xip_split_image
    bootloader_config
    bootloader_signature_keys
    bootloader_downgrade_protection
