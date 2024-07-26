@@ -1,8 +1,9 @@
-.. _ug_app_dev:
 .. _configuration_and_build:
+.. _gs_modifying:
+.. _configure_application:
 
-Configuration and building
-##########################
+Configuring and building
+########################
 
 After you have :ref:`created an application <create_application>`, you need to configure and build it in order to be able to run it.
 
@@ -36,11 +37,13 @@ Make sure to consider :ref:`app_bootloaders` and :ref:`app_dfu` already at this 
    :maxdepth: 1
    :caption: Subpages:
 
-   config_and_build/config_and_build_system
-   config_and_build/board_support/index
-   config_and_build/configuring_app/index
-   config_and_build/companion_components
-   config_and_build/programming
-   config_and_build/multi_image
-   config_and_build/bootloaders/index
-   config_and_build/dfu/index
+   config_and_build_system
+   cmake/index
+   hardware/index
+   kconfig/index
+   sysbuild/index
+   multi_image
+   building
+   output_build_files
+
+
