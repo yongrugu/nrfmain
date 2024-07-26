@@ -9,7 +9,12 @@
 #include <errno.h>
 #include <nrf.h>
 #include <assert.h>
+#ifdef CONFIG_NRFX_NVMC
 #include <nrfx_nvmc.h>
+#endif
+#ifdef CONFIG_NRFX_RRAMC
+#include <nrfx_rramc.h>
+#endif
 #include <zephyr/kernel.h>
 
 #define TYPE_COUNTERS 1 /* Type referring to counter collection. */
@@ -35,10 +40,14 @@ struct monotonic_counter {
 	/* Counter description. What the counter is used for. See
 	 * BL_MONOTONIC_COUNTERS_DESC_x.
 	 */
-	uint16_t description;
+	uint32_t description;
 	/* Number of entries in 'counter_slots' list. */
-	uint16_t num_counter_slots;
+	uint32_t num_counter_slots;
+#ifdef CONFIG_NRFX_NVMC
 	uint16_t counter_slots[1];
+#elif CONFIG_NRFX_RRAMC
+	uint32_t counter_slots[1];
+#endif
 };
 
 /** The second data structure in the provision page. It has unknown length since
@@ -47,10 +56,12 @@ struct monotonic_counter {
  *  entries beyond the first cannot be accessed via array indices.
  */
 struct counter_collection {
-	uint16_t type; /* Must be "monotonic counter". */
-	uint16_t num_counters; /* Number of entries in 'counters' list. */
+	uint32_t type; /* Must be "monotonic counter". */
+	uint32_t num_counters; /* Number of entries in 'counters' list. */
 	struct monotonic_counter counters[1];
 };
+
+
 
 /*
  * BL_STORAGE is usually, but not always, in UICR. For code simplicity
@@ -59,17 +70,17 @@ struct counter_collection {
  */
 uint32_t s0_address_read(void)
 {
-	return nrfx_nvmc_uicr_word_read(&BL_STORAGE->s0_address);
+	return bl_storage_word_read((uint32_t)&BL_STORAGE->s0_address);
 }
 
 uint32_t s1_address_read(void)
 {
-	return nrfx_nvmc_uicr_word_read(&BL_STORAGE->s1_address);
+	return bl_storage_word_read((uint32_t)&BL_STORAGE->s1_address);
 }
 
 uint32_t num_public_keys_read(void)
 {
-	return nrfx_nvmc_uicr_word_read(&BL_STORAGE->num_public_keys);
+	return bl_storage_word_read((uint32_t)&BL_STORAGE->num_public_keys);
 }
 
 /* Value written to the invalidation token when invalidating an entry. */
@@ -85,7 +96,7 @@ static bool key_is_valid(uint32_t key_idx)
 		return false;
 	}
 
-	const uint32_t token = nrfx_nvmc_uicr_word_read(&BL_STORAGE->key_data[key_idx].valid);
+	const uint32_t token = bl_storage_word_read((uint32_t)&BL_STORAGE->key_data[key_idx].valid);
 	const uint32_t invalid_val = INVALID_VAL | key_idx << TOKEN_IDX_OFFSET;
 	const uint32_t valid_val = VALID_VAL | key_idx << TOKEN_IDX_OFFSET;
 
@@ -111,7 +122,7 @@ int verify_public_keys(void)
 			for (uint32_t i = 0; i < SB_PUBLIC_KEY_HASH_LEN / 2; i++) {
 				const uint16_t *hash_as_halfwords =
 					(const uint16_t *)BL_STORAGE->key_data[n].hash;
-				uint16_t halfword = nrfx_nvmc_otp_halfword_read(
+				uint16_t halfword = bl_storage_otp_halfword_read(
 					(uint32_t)&hash_as_halfwords[i]);
 				if (halfword == 0xFFFF) {
 					return -EHASHFF;
@@ -155,7 +166,11 @@ void invalidate_public_key(uint32_t key_idx)
 
 	if (key_is_valid(key_idx)) {
 		/* Write if not already written. */
+#ifdef CONFIG_NRFX_NVMC
 		nrfx_nvmc_word_write((uint32_t)invalidation_token, INVALID_WRITE_VAL);
+#else
+		nrfx_rramc_word_write((uint32_t)invalidation_token, INVALID_WRITE_VAL);
+#endif
 	}
 }
 
@@ -164,7 +179,7 @@ static const struct counter_collection *get_counter_collection(void)
 {
 	const struct counter_collection *collection = (struct counter_collection *)
 		&BL_STORAGE->key_data[num_public_keys_read()];
-	return nrfx_nvmc_otp_halfword_read((uint32_t)&collection->type) == TYPE_COUNTERS
+	return bl_storage_otp_halfword_read((uint32_t)&collection->type) == TYPE_COUNTERS
 		? collection : NULL;
 }
 
@@ -182,12 +197,12 @@ static const struct monotonic_counter *get_counter_struct(uint16_t description)
 
 	const struct monotonic_counter *current = counters->counters;
 
-	for (size_t i = 0; i < nrfx_nvmc_otp_halfword_read(
+	for (size_t i = 0; i < bl_storage_otp_halfword_read(
 		(uint32_t)&counters->num_counters); i++) {
-		uint16_t num_slots = nrfx_nvmc_otp_halfword_read(
+		uint16_t num_slots = bl_storage_otp_halfword_read(
 					(uint32_t)&current->num_counter_slots);
 
-		if (nrfx_nvmc_otp_halfword_read((uint32_t)&current->description) == description) {
+		if (bl_storage_otp_halfword_read((uint32_t)&current->description) == description) {
 			return current;
 		}
 
@@ -205,7 +220,7 @@ int num_monotonic_counter_slots(uint16_t counter_desc, uint16_t *counter_slots)
 		return -EINVAL;
 	}
 
-	uint16_t num_slots = nrfx_nvmc_otp_halfword_read((uint32_t)&counter->num_counter_slots);
+	uint16_t num_slots = bl_storage_otp_halfword_read((uint32_t)&counter->num_counter_slots);
 
 	if (num_slots == 0xFFFF) {
 		/* We consider the 0xFFFF as invalid since it is the default value of the OTP */
@@ -227,12 +242,22 @@ int num_monotonic_counter_slots(uint16_t counter_desc, uint16_t *counter_slots)
  * @retval -EINVAL  Cannot find counters with description @p counter_desc or the pointer to
  *                  @p counter_value is NULL.
  */
+#ifdef CONFIG_NRFX_NVMC
 static int get_counter(uint16_t counter_desc, uint16_t *counter_value, const uint16_t **free_slot)
+#else
+static int get_counter(uint16_t counter_desc, uint32_t *counter_value, const uint32_t **free_slot)
+#endif
 {
+#ifdef CONFIG_NRFX_NVMC
 	uint16_t highest_counter = 0;
-	const uint16_t *addr = NULL;
-	const struct monotonic_counter *counter_obj = get_counter_struct(counter_desc);
 	const uint16_t *slots;
+	const uint16_t *addr = NULL;
+#else
+	uint32_t highest_counter = 0;
+	const uint32_t *slots;
+	const uint32_t *addr = NULL;
+#endif
+	const struct monotonic_counter *counter_obj = get_counter_struct(counter_desc);
 	uint16_t num_counter_slots;
 
 	if (counter_obj == NULL || counter_value == NULL) {
@@ -240,10 +265,14 @@ static int get_counter(uint16_t counter_desc, uint16_t *counter_value, const uin
 	}
 
 	slots = counter_obj->counter_slots;
-	num_counter_slots = nrfx_nvmc_otp_halfword_read((uint32_t)&counter_obj->num_counter_slots);
+	num_counter_slots = bl_storage_otp_halfword_read((uint32_t)&counter_obj->num_counter_slots);
 
 	for (uint32_t i = 0; i < num_counter_slots; i++) {
+#ifdef CONFIG_NRFX_NVMC
 		uint16_t counter = ~nrfx_nvmc_otp_halfword_read((uint32_t)&slots[i]);
+#else
+		uint32_t counter = ~nrfx_rramc_otp_word_read(index_from_address((uint32_t)&slots[i]));
+#endif
 
 		if (counter == 0) {
 			addr = &slots[i];
@@ -262,11 +291,16 @@ static int get_counter(uint16_t counter_desc, uint16_t *counter_value, const uin
 	return 0;
 }
 
+#ifdef CONFIG_NRFX_NVMC
 int get_monotonic_counter(uint16_t counter_desc, uint16_t *counter_value)
+#else
+int get_monotonic_counter(uint16_t counter_desc, uint32_t *counter_value)
+#endif
 {
 	return get_counter(counter_desc, counter_value, NULL);
 }
 
+#ifdef CONFIG_NRFX_NVMC
 int set_monotonic_counter(uint16_t counter_desc, uint16_t new_counter)
 {
 	const uint16_t *next_counter_addr;
@@ -291,3 +325,29 @@ int set_monotonic_counter(uint16_t counter_desc, uint16_t new_counter)
 	nrfx_nvmc_halfword_write((uint32_t)next_counter_addr, ~new_counter);
 	return 0;
 }
+#else
+int set_monotonic_counter(uint16_t counter_desc, uint32_t new_counter)
+{
+	const uint32_t *next_counter_addr;
+	uint32_t current_cnt_value;
+	int err;
+
+	err = get_counter(counter_desc, &current_cnt_value, &next_counter_addr);
+	if (err != 0) {
+		return err;
+	}
+
+	if (new_counter <= current_cnt_value) {
+		/* Counter value must increase. */
+		return -EINVAL;
+	}
+
+	if (next_counter_addr == NULL) {
+		/* No more room. */
+		return -ENOMEM;
+	}
+
+	nrfx_rramc_otp_word_write(index_from_address((uint32_t)next_counter_addr), ~new_counter);
+	return 0;
+}
+#endif
