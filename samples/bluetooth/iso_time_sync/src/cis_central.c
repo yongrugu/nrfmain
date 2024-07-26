@@ -87,6 +87,8 @@ static void scan_recv(const struct bt_le_scan_recv_info *info, struct net_buf_si
 				    &conn);
 	if (err) {
 		printk("Create conn to %s failed (%d)\n", name_str, err);
+	} else {
+		bt_conn_unref(conn);
 	}
 }
 
