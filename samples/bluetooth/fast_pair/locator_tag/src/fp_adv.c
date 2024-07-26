@@ -30,6 +30,9 @@ LOG_MODULE_DECLARE(fp_fmdn, LOG_LEVEL_INF);
 #define FP_RPA_TIMEOUT			(13 * FP_RPA_SEC_PER_MIN)
 #define FP_RPA_TIMEOUT_OFFSET_MAX	(2 * FP_RPA_SEC_PER_MIN)
 
+static bool is_initialized;
+static bool is_enabled;
+
 static bool fmdn_provisioned;
 
 static struct bt_conn *fp_conn;
@@ -259,6 +262,11 @@ static bool fp_adv_rpa_expired(struct bt_le_ext_adv *adv)
 			(k_uptime_delta(&uptime) / MSEC_PER_SEC));
 	}
 
+	if (!is_enabled) {
+		LOG_INF("Fast Pair: RPA rotation blocked as the fp_adv module is disabled");
+		return false;
+	}
+
 	/* In the FMDN provisioned state, the FMDN advertising set is responsible
 	 * for setting the global RPA timeout using the bt_le_set_rpa_timeout API.
 	 * In the unprovisioned state, it is the responsibility of the Fast Pair advertising set.
@@ -288,6 +296,7 @@ static bool fp_adv_rpa_expired(struct bt_le_ext_adv *adv)
 	}
 
 	if (fp_adv_mode != APP_FP_ADV_MODE_OFF) {
+		/* Update the advertising payload. */
 		err = fp_adv_payload_set(expire_rpa, false);
 		if (err) {
 			LOG_ERR("Fast Pair: cannot set advertising payload (err: %d)", err);
@@ -300,7 +309,6 @@ static bool fp_adv_rpa_expired(struct bt_le_ext_adv *adv)
 static int fp_adv_set_setup(void)
 {
 	int err;
-	struct bt_le_oob oob;
 	static const struct bt_le_ext_adv_cb fp_adv_set_cb = {
 		.connected = fp_adv_connected,
 		.rpa_expired = fp_adv_rpa_expired,
@@ -312,15 +320,6 @@ static int fp_adv_set_setup(void)
 	err = bt_le_ext_adv_create(&fp_adv_param, &fp_adv_set_cb, &fp_adv_set);
 	if (err) {
 		LOG_ERR("Fast Pair: bt_le_ext_adv_create returned error: %d", err);
-		return err;
-	}
-
-	/* Force the RPA rotation to synchronize the Fast Pair advertising
-	 * payload with its RPA address using rpa_expired callback.
-	 */
-	err = bt_le_oob_get_local(fp_adv_param.id, &oob);
-	if (err) {
-		LOG_ERR("Fast Pair: bt_le_oob_get_local failed: %d", err);
 		return err;
 	}
 
@@ -405,14 +404,43 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 static void fp_adv_provisioning_state_changed(bool provisioned)
 {
+	struct bt_le_oob oob;
+	int err;
+
 	fmdn_provisioned = provisioned;
+
+	if (!provisioned) {
+		/* Force the RPA rotation to synchronize the Fast Pair advertising
+		 * payload with its RPA address using rpa_expired callback.
+		 */
+		err = bt_le_oob_get_local(fp_adv_param.id, &oob);
+		if (err) {
+			LOG_ERR("Fast Pair: bt_le_oob_get_local failed: %d", err);
+		}
+	}
 }
 
 static struct bt_fast_pair_fmdn_info_cb fmdn_info_cb = {
 	.provisioning_state_changed = fp_adv_provisioning_state_changed,
 };
 
-void app_fp_adv_mode_set(enum app_fp_adv_mode adv_mode)
+enum app_fp_adv_mode app_fp_adv_mode_get(void)
+{
+	return fp_adv_mode;
+}
+
+static bool fp_adv_trigger_is_enabled_any(void)
+{
+	STRUCT_SECTION_FOREACH(app_fp_adv_trigger, adv_trigger) {
+		if (adv_trigger->enabled) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static void fp_adv_mode_set(enum app_fp_adv_mode adv_mode)
 {
 	fp_adv_mode = adv_mode;
 
@@ -426,57 +454,58 @@ void app_fp_adv_mode_set(enum app_fp_adv_mode adv_mode)
 	}
 }
 
+static void fp_adv_request_start(void)
+{
+	bool has_account_key = bt_fast_pair_has_account_key();
+	bool requested_adv_on = fp_adv_trigger_is_enabled_any();
+	enum app_fp_adv_mode requested_mode;
+
+	if (requested_adv_on) {
+		requested_mode = has_account_key ?
+				 APP_FP_ADV_MODE_NOT_DISCOVERABLE :
+				 APP_FP_ADV_MODE_DISCOVERABLE;
+	} else {
+		requested_mode = APP_FP_ADV_MODE_OFF;
+	}
+
+	/* Switch the advertising mode only on change. */
+	if (requested_mode != fp_adv_mode) {
+		LOG_INF("Fast Pair: advertising: %sabling", requested_adv_on ? "en" : "dis");
+		fp_adv_mode_set(requested_mode);
+	}
+}
+
+void app_fp_adv_request(struct app_fp_adv_trigger *trigger, bool enable)
+{
+	if (trigger->enabled == enable) {
+		return;
+	}
+
+	trigger->enabled = enable;
+
+	LOG_INF("Fast Pair: advertising request from trigger \"%s\": %s",
+		trigger->id, trigger->enabled ? "enable" : "disable");
+
+	if (is_enabled) {
+		fp_adv_request_start();
+	} else {
+		LOG_WRN("Fast Pair: advertising module is disabled");
+	}
+}
+
+void app_fp_adv_refresh(void)
+{
+	fp_adv_mode_set(fp_adv_mode);
+}
+
 void app_fp_adv_rpa_rotation_suspend(bool suspended)
 {
 	fp_adv_rpa_rotation_suspended = suspended;
 }
 
-static void fp_adv_request_handle(enum app_ui_request request)
-{
-	/* It is assumed that the callback executes in the cooperative
-	 * thread context as it interacts with the FMDN API.
-	 */
-	__ASSERT_NO_MSG(!k_is_preempt_thread());
-	__ASSERT_NO_MSG(!k_is_in_isr());
-
-	if (!app_fp_adv_is_init()) {
-		return;
-	}
-
-	if (request == APP_UI_REQUEST_FP_ADV_MODE_CHANGE) {
-		bool has_account_key = bt_fast_pair_has_account_key();
-
-		if (has_account_key) {
-			switch (fp_adv_mode) {
-			case APP_FP_ADV_MODE_OFF:
-				fp_adv_mode = APP_FP_ADV_MODE_NOT_DISCOVERABLE;
-				break;
-			case APP_FP_ADV_MODE_NOT_DISCOVERABLE:
-				fp_adv_mode = APP_FP_ADV_MODE_OFF;
-				break;
-			default:
-				__ASSERT_NO_MSG(0);
-			}
-		} else {
-			switch (fp_adv_mode) {
-			case APP_FP_ADV_MODE_OFF:
-				fp_adv_mode = APP_FP_ADV_MODE_DISCOVERABLE;
-				break;
-			case APP_FP_ADV_MODE_DISCOVERABLE:
-				fp_adv_mode = APP_FP_ADV_MODE_OFF;
-				break;
-			default:
-				__ASSERT_NO_MSG(0);
-			}
-		}
-
-		fp_advertising_start();
-	}
-}
-
 int app_fp_adv_id_set(uint8_t id)
 {
-	if (app_fp_adv_is_init()) {
+	if (app_fp_adv_is_ready()) {
 		/* It is not possible to switch the Bluetooth identity
 		 * if Fast Pair advertising module is operational.
 		 */
@@ -493,24 +522,6 @@ uint8_t app_fp_adv_id_get(void)
 	return fp_adv_param.id;
 }
 
-int app_fp_adv_uninit(void)
-{
-	int err;
-
-	app_fp_adv_mode_set(APP_FP_ADV_MODE_OFF);
-	app_fp_adv_rpa_rotation_suspend(false);
-
-	fp_adv_conn_clear();
-
-	err = fp_adv_set_teardown();
-	if (err) {
-		LOG_ERR("Fast Pair: fp_adv_set_teardown failed (err %d)", err);
-		return err;
-	}
-
-	return 0;
-}
-
 int app_fp_adv_init(void)
 {
 	int err;
@@ -521,18 +532,71 @@ int app_fp_adv_init(void)
 		return err;
 	}
 
+	is_initialized = true;
+
+	return 0;
+}
+
+int app_fp_adv_enable(void)
+{
+	int err;
+
+	__ASSERT_NO_MSG(bt_fast_pair_is_ready());
+	__ASSERT_NO_MSG(is_initialized);
+
+	if (is_enabled) {
+		LOG_ERR("Fast Pair: fp_adv module already enabled");
+		return 0;
+	}
+
 	err = fp_adv_set_setup();
 	if (err) {
 		LOG_ERR("Fast Pair: fp_adv_set_setup failed (err %d)", err);
 		return err;
 	}
 
+	/* Start the advertising if any module already requested it. */
+	fp_adv_request_start();
+
+	is_enabled = true;
+
+	LOG_INF("Fast Pair: fp_adv module enabled");
+
 	return 0;
 }
 
-bool app_fp_adv_is_init(void)
+int app_fp_adv_disable(void)
 {
-	return (fp_adv_set != NULL);
+	int err;
+
+	__ASSERT_NO_MSG(is_initialized);
+
+	if (!is_enabled) {
+		LOG_ERR("Fast Pair: fp_adv module already disabled");
+		return 0;
+	}
+
+	is_enabled = false;
+
+	/* Suspend the requested advertising until the fp_adv module reinitializes. */
+	fp_adv_mode_set(APP_FP_ADV_MODE_OFF);
+
+	app_fp_adv_rpa_rotation_suspend(false);
+
+	fp_adv_conn_clear();
+
+	err = fp_adv_set_teardown();
+	if (err) {
+		LOG_ERR("Fast Pair: fp_adv_set_teardown failed (err %d)", err);
+		return err;
+	}
+
+	LOG_INF("Fast Pair: fp_adv module disabled");
+
+	return 0;
 }
 
-APP_UI_REQUEST_LISTENER_REGISTER(fp_adv_request_handler, fp_adv_request_handle);
+bool app_fp_adv_is_ready(void)
+{
+	return is_enabled;
+}
