@@ -28,14 +28,14 @@ With west
 
 .. code-block:: console
 
-    west build -p -b nrf7002dk/nrf5340/cpuapp samples/wifi/shell -- -Dnrf_wifi_shell_SNIPPET="nrf70-debug"
+    west build -p -b nrf7002dk/nrf5340/cpuapp samples/wifi/shell -- -Dnrf_wifi_shell_SNIPPET="nrf70-driver-verbose-debug;nrf70-supplicant-debug"
 
 With CMake
 ----------
 
 .. code-block:: console
 
-    cmake -GNinja -Bbuild -DBOARD=nrf7002dk/nrf5340/cpuapp -Dnrf_wifi_shell_SNIPPET="nrf70-debug" samples/wifi/shell
+    cmake -GNinja -Bbuild -DBOARD=nrf7002dk/nrf5340/cpuapp -Dnrf_wifi_shell_SNIPPET="nrf70-driver-verbose-debug;nrf70-supplicant-debug" samples/wifi/shell
     ninja -C build
 
 Statistics
@@ -43,7 +43,7 @@ Statistics
 
 The nRF Wi-Fi driver, firmware, and networking stack have statistics feature that can be enabled to help debug issues.
 
-You can enable statistics by using the ``nrf70-debug`` snippet.
+You can enable statistics by using either the ``nrf70-supplicant-debug`` or ``nrf70-driver-verbose-debug`` snippets.
 See `Enable debug features`_.
 
 .. list-table:: Statistics table
