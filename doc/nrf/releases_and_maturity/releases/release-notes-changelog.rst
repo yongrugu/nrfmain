@@ -176,6 +176,13 @@ Asset Tracker v2
 
 |no_changes_yet_note|
 
+Serial LTE modem
+----------------
+
+* Updated:
+
+  * AT string parsing to utilize the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
+
 Connectivity Bridge
 -------------------
 
@@ -268,6 +275,14 @@ Bluetooth Mesh samples
 
 Cellular samples
 ----------------
+
+* :ref:`fmfu_smp_svr_sample` sample:
+
+  * Removed the unused :ref:`at_cmd_parser_readme` library.
+
+* :ref:`modem_shell_application` sample:
+
+  * Updated to use the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
 
 * :ref:`nrf_cloud_rest_fota` sample:
 
@@ -462,6 +477,36 @@ Gazell libraries
 Modem libraries
 ---------------
 
+* Added:
+
+   * :ref:`at_parser_readme` library.
+     The :ref:`at_parser_readme` is a library that parses AT command responses, notifications, or events.
+     Compared to the deprecated :ref:`at_cmd_parser_readme` library, it does not allocate memory dynamically and has a smaller footprint.
+     More information on how to transition from the :ref:`at_cmd_parser_readme` library to the :ref:`at_parser_readme` library in the :ref:`migration guide <migration_2.8_recommended>`.
+
+* :ref:`at_cmd_parser_readme` library:
+
+  * Deprecated:
+    * The :ref:`at_cmd_parser_readme` library in favor of the :ref:`at_parser_readme` library. The :ref:`at_cmd_parser_readme` library will be removed in a future version. More information on how to transition from the :ref:`at_cmd_parser_readme` library to the :ref:`at_parser_readme` library in the :ref:`migration guide <migration_2.8_recommended>`.
+    * The :kconfig:option:`CONFIG_AT_CMD_PARSER`. This option will be removed in a future version.
+  * Renamed the :c:func:`at_parser_cmd_type_get` function to :c:func:`at_parser_at_cmd_type_get` to prevent a name collision.
+
+* :ref:`lte_lc_readme` library:
+
+  * Updated to use the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
+
+* :ref:`lib_location` library:
+
+  * Removed the unused :ref:`at_cmd_parser_readme` library.
+
+* :ref:`lib_zzhc` library:
+
+  * Updated to use the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
+
+* :ref:`modem_info_readme` library:
+
+  * Updated to use the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
+
 * :ref:`nrf_modem_lib_lte_net_if` library:
 
   * Added a log warning suggesting a SIM card to be installed if a UICC error is detected by the modem.
@@ -477,6 +522,10 @@ Multiprotocol Service Layer libraries
 
 Libraries for networking
 ------------------------
+
+* :ref:`lib_lwm2m_client_utils` library:
+
+  * Updated to use the :ref:`at_parser_readme` library instead of the :ref:`at_cmd_parser_readme` library.
 
 * :ref:`lib_nrf_cloud_rest` library:
 
