@@ -101,6 +101,11 @@ For information about how to upgrade the device firmware using a PC or a smartph
 .. note::
     Currently the DFU over Bluetooth LE SMP and Matter OTA are not available for the ``nrf54h20dk/nrf54h20/cpuapp`` board target.
 
+The Matter bridge device has an additional functionality, enabling it to work as a smart plug.
+This feature provides an additional endpoint with an ID equal to 2, which represents Matter on/off smart plug device type functionality.
+This means that you can integrate the Matter bridge functionality into your end product, such as a smart plug, and avoid having to use a standalone bridge device.
+This is an optional feature and can be enabled by :ref:`Configuring the smart plug functionality <matter_bridge_smart_plug_functionality>`.
+
 .. _matter_bridge_app_bridged_support:
 
 Bridged device support
@@ -137,21 +142,52 @@ For details, see the `Testing`_ section.
 User interface
 **************
 
-Button 1:
-   .. include:: /includes/matter_sample_button.txt
+.. tabs::
+   .. group-tab:: nRF70 and nRF53 DKs
 
-LED 1:
-   .. include:: /includes/matter_sample_state_led.txt
+      Button 1:
+         .. include:: /includes/matter_sample_button.txt
 
-LED 2:
-   If the :ref:`CONFIG_BRIDGED_DEVICE_BT <CONFIG_BRIDGED_DEVICE_BT>` Kconfig option is set to ``y``, shows the current state of Bridge's Bluetooth LE connectivity.
-   The following states are possible:
+      Button 2:
+         If pressed while the Matter smart plug functionality is enabled, the button changes the state of the smart plug device.
 
-   * Turned Off - The Bridge device is in the idle state and has no Bluetooth LE devices paired.
-   * Solid On - The Bridge device is in the idle state and all connections to the Bluetooth LE bridged devices are stable.
-   * Slow Even Flashing (1000 ms on / 1000 ms off) - The Bridge device lost connection to at least one Bluetooth LE bridged device.
-   * Even Flashing (300 ms on / 300 ms off) - The scan for Bluetooth LE devices is in progress.
-   * Fast Even Flashing (100 ms on / 100 ms off) - The Bridge device is connecting to the Bluetooth LE device and waiting for the Bluetooth LE authentication PIN code.
+      LED 1:
+         .. include:: /includes/matter_sample_state_led.txt
+
+      LED 2:
+         If the :ref:`CONFIG_BRIDGED_DEVICE_BT <CONFIG_BRIDGED_DEVICE_BT>` Kconfig option is set to ``y``, shows the current state of Bridge's Bluetooth LE connectivity.
+         The following states are possible:
+
+         * Turned Off - The Bridge device is in the idle state and has no Bluetooth LE devices paired.
+         * Solid On - The Bridge device is in the idle state and all connections to the Bluetooth LE bridged devices are stable.
+         * Slow Even Flashing (1000 ms on / 1000 ms off) - The Bridge device lost connection to at least one Bluetooth LE bridged device.
+         * Even Flashing (300 ms on / 300 ms off) - The scan for Bluetooth LE devices is in progress.
+         * Fast Even Flashing (100 ms on / 100 ms off) - The Bridge device is connecting to the Bluetooth LE device and waiting for the Bluetooth LE authentication PIN code.
+
+         If used with the Matter smart plug functionality enabled, it shows the state of the smart plug device.
+
+   .. group-tab:: nrf54 DKs
+
+      Button 0:
+         .. include:: /includes/matter_sample_button.txt
+
+      Button 1:
+         If pressed while the Matter smart plug functionality is enabled, the button changes the state of the smart plug device.
+
+      LED 0:
+         .. include:: /includes/matter_sample_state_led.txt
+
+      LED 1:
+         If the :ref:`CONFIG_BRIDGED_DEVICE_BT <CONFIG_BRIDGED_DEVICE_BT>` Kconfig option is set to ``y``, shows the current state of Bridge's Bluetooth LE connectivity.
+         The following states are possible:
+
+         * Turned Off - The Bridge device is in the idle state and has no Bluetooth LE devices paired.
+         * Solid On - The Bridge device is in the idle state and all connections to the Bluetooth LE bridged devices are stable.
+         * Slow Even Flashing (1000 ms on / 1000 ms off) - The Bridge device lost connection to at least one Bluetooth LE bridged device.
+         * Even Flashing (300 ms on / 300 ms off) - The scan for Bluetooth LE devices is in progress.
+         * Fast Even Flashing (100 ms on / 100 ms off) - The Bridge device is connecting to the Bluetooth LE device and waiting for the Bluetooth LE authentication PIN code.
+
+         If used with the Matter smart plug functionality enabled, it shows the state of the smart plug device.
 
 .. include:: /includes/matter_segger_usb.txt
 
@@ -602,6 +638,27 @@ Selecting a configuration
 
 Before you start testing the application, you can select one of the :ref:`matter_bridge_app_custom_configs`.
 See :ref:`app_build_file_suffixes` and :ref:`cmake_options` for more information how to select a configuration.
+
+.. _matter_bridge_smart_plug_functionality:
+
+Configure the functionality of the Matter-Bridge device
+-------------------------------------------------------
+
+To enable the Matter smart plug functionality, run the following command:
+
+.. tabs::
+
+   .. group-tab:: nRF54 DKs
+
+      .. code-block:: console
+
+         west build -b nrf54h20dk/nrf54h20/cpuapp -p -- -DSB_CONFIG_WIFI_NRF700X=y -DCONFIG_CHIP_WIFI=y -Dmatter_bridge_SHIELD=nrf700x_nrf54h20dk -DCONFIG_BRIDGED_DEVICE_BT=y -Dmatter_bridge_SNIPPET=onoff_plug
+
+   .. group-tab:: nRF70 DKs
+
+      .. code-block:: console
+
+         west build -b nrf7002dk/nrf5340/cpuapp -p -- -DCONFIG_BRIDGED_DEVICE_BT=y -Dmatter_bridge_SNIPPET=onoff_plug
 
 .. _matter_bridge_testing:
 
